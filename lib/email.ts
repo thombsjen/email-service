@@ -1,28 +1,20 @@
-import nodemailer from "nodemailer";
-import type { Transporter } from "nodemailer";
+import { Resend } from "resend";
+import type { EmailEndpointId } from "@/lib/endpoints";
+import { getEndpointConfig } from "@/lib/endpoints";
 
-let transporter: Transporter | null = null;
+const clients = new Map<string, Resend>();
 
-function getTransporter(): Transporter {
-  if (transporter) return transporter;
-
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT ?? "587");
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  if (!host || !user || !pass) {
-    throw new Error("SMTP_HOST, SMTP_USER, and SMTP_PASS must be set");
+function getResendClient(endpointId: EmailEndpointId): Resend {
+  const { resendApiKey } = getEndpointConfig(endpointId);
+  if (!resendApiKey) {
+    throw new Error(`Resend API key for ${endpointId} must be set`);
   }
 
-  transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: process.env.SMTP_SECURE === "true",
-    auth: { user, pass },
-  });
+  if (!clients.has(resendApiKey)) {
+    clients.set(resendApiKey, new Resend(resendApiKey));
+  }
 
-  return transporter;
+  return clients.get(resendApiKey)!;
 }
 
 export type SendEmailInput = {
@@ -34,29 +26,41 @@ export type SendEmailInput = {
   replyTo?: string;
 };
 
-export async function sendEmail(input: SendEmailInput) {
-  const from = input.from ?? process.env.SMTP_FROM;
+export async function sendEmail(
+  endpointId: EmailEndpointId,
+  input: SendEmailInput,
+) {
+  const { from: defaultFrom } = getEndpointConfig(endpointId);
+  const from = input.from ?? defaultFrom;
   if (!from) {
-    throw new Error("SMTP_FROM must be set or provide a from address");
+    throw new Error(
+      `Default from address for ${endpointId} must be set or provide a from address`,
+    );
   }
 
   if (!input.text && !input.html) {
     throw new Error("Either text or html body is required");
   }
 
-  const transport = getTransporter();
-  const info = await transport.sendMail({
+  const resend = getResendClient(endpointId);
+  const base = {
     from,
     to: input.to,
     subject: input.subject,
-    text: input.text,
-    html: input.html,
-    replyTo: input.replyTo,
-  });
-
-  return {
-    messageId: info.messageId,
-    accepted: info.accepted,
-    rejected: info.rejected,
+    ...(input.replyTo ? { replyTo: input.replyTo } : {}),
   };
+
+  const { data, error } = input.html
+    ? await resend.emails.send({
+        ...base,
+        html: input.html,
+        ...(input.text ? { text: input.text } : {}),
+      })
+    : await resend.emails.send({ ...base, text: input.text! });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return { id: data?.id };
 }

@@ -1,13 +1,21 @@
 import { NextResponse } from "next/server";
+import { emailEndpoints } from "@/lib/endpoints";
 
 export async function GET() {
-  const smtpConfigured = Boolean(
-    process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS,
+  const endpoints = Object.fromEntries(
+    Object.entries(emailEndpoints).map(([id, config]) => [
+      id,
+      {
+        resendConfigured: Boolean(process.env[config.resendApiKeyEnv]),
+        fromConfigured: Boolean(process.env[config.fromEnv]),
+        authRequired: Boolean(process.env[config.apiKeyEnv]),
+      },
+    ]),
   );
 
   return NextResponse.json({
     status: "ok",
-    smtpConfigured,
-    authRequired: Boolean(process.env.API_KEY),
+    provider: "resend",
+    endpoints,
   });
 }

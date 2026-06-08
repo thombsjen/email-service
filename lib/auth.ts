@@ -1,14 +1,23 @@
 import { NextRequest } from "next/server";
+import type { EmailEndpointId } from "@/lib/endpoints";
+import { getEndpointConfig } from "@/lib/endpoints";
 
-export function isAuthorized(request: NextRequest): boolean {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) return true;
-
+function extractApiKey(request: NextRequest): string | null {
   const header = request.headers.get("authorization");
   if (header?.startsWith("Bearer ")) {
-    return header.slice(7) === apiKey;
+    return header.slice(7);
   }
 
-  const keyHeader = request.headers.get("x-api-key");
-  return keyHeader === apiKey;
+  return request.headers.get("x-api-key");
+}
+
+export function isAuthorizedForEndpoint(
+  request: NextRequest,
+  endpointId: EmailEndpointId,
+): boolean {
+  const { apiKey } = getEndpointConfig(endpointId);
+  if (!apiKey) return true;
+
+  const provided = extractApiKey(request);
+  return provided === apiKey;
 }
