@@ -1,3 +1,3 @@
 import { createSendHandler } from "@/lib/handle-send";
 
-export const POST = createSendHandler("thmoas");
+export const { POST, OPTIONS } = createSendHandler("thmoas");
