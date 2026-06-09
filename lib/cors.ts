@@ -4,6 +4,8 @@ const ALLOWED_ORIGINS = new Set([
   "http://localhost:3000",
   "https://moonsofts.net",
   "https://www.moonsofts.net",
+  "http://localhost:5173",
+  "https://thomas-portfolio-snowy.vercel.app/"
 ]);
 
 export function isAllowedOrigin(origin: string | null): origin is string {
